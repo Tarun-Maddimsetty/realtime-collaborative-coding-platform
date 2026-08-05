@@ -15,6 +15,8 @@ connectDB();
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? [process.env.CLIENT_URL]
   : /^http:\/\/localhost:(5173|5174|5175|5176|5177)$/;
+  console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
 const corsOptions = {
   origin: allowedOrigins,

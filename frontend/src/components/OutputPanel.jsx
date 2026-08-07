@@ -3,11 +3,11 @@ import { Terminal } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import 'xterm/css/xterm.css';
 
-export default function OutputPanel({ output, status, loading, previewDoc, language, awaitingInput = false, onInputSubmit }) {
+export default function OutputPanel({ output, stderr = '', compileError = '', runtimeError = '', status, loading, previewDoc, language, awaitingInput = false, requiresInput = false, stdinValue = '', onStdinChange, onInputSubmit }) {
   const terminalRef = useRef(null);
   const terminalInstanceRef = useRef(null);
   const inputBufferRef = useRef('');
-  const isPreview = ['html', 'css', 'javascript'].includes(language);
+  const isPreview = ['html', 'css', 'javascript', 'js', 'typescript', 'ts'].includes(language);
   const isSuccess = status === 'Accepted';
 
   useEffect(() => {
@@ -97,20 +97,25 @@ export default function OutputPanel({ output, status, loading, previewDoc, langu
       return;
     }
 
-    if (!output) {
-      terminal.write('Press Run to execute your code\r\n');
+    const sections = [];
+    if (output && output.trim()) sections.push(`stdout\n${output}`);
+    if (stderr && stderr.trim()) sections.push(`stderr\n${stderr}`);
+    if (compileError && compileError.trim()) sections.push(`compile errors\n${compileError}`);
+    if (runtimeError && runtimeError.trim()) sections.push(`runtime errors\n${runtimeError}`);
+
+    if (!sections.length) {
+      terminal.write(requiresInput ? 'This program requires stdin input.\r\n' : 'Press Run to execute your code\r\n');
       return;
     }
 
-    const safeOutput = output.replace(/\r/g, '');
-    terminal.write(safeOutput + '\r\n');
+    terminal.write(sections.join('\r\n\r\n') + '\r\n');
 
     if (awaitingInput) {
       terminal.write('> ');
       inputBufferRef.current = '';
       terminal.focus();
     }
-  }, [output, loading, previewDoc, isPreview, awaitingInput]);
+  }, [output, stderr, compileError, runtimeError, loading, previewDoc, isPreview, awaitingInput, requiresInput]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
@@ -125,6 +130,28 @@ export default function OutputPanel({ output, status, loading, previewDoc, langu
           <span style={{ marginLeft: 'auto', fontSize: '0.6875rem', fontWeight: 600, padding: '2px 9px', borderRadius: '99px', background: isSuccess ? 'rgba(63,185,80,0.12)' : 'rgba(248,81,73,0.12)', color: isSuccess ? 'var(--green)' : 'var(--red)', border: `1px solid ${isSuccess ? 'rgba(63,185,80,0.3)' : 'rgba(248,81,73,0.3)'}` }}>
             {isSuccess ? '✓ Success' : '✗ Error'}
           </span>
+        )}
+      </div>
+
+      <div style={{ padding: '10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+          {requiresInput ? 'Input' : 'Input (disabled for this program)'}
+        </label>
+        <textarea
+          value={stdinValue}
+          onChange={(event) => typeof onStdinChange === 'function' && onStdinChange(event.target.value)}
+          placeholder={requiresInput ? 'Enter stdin for your program…' : 'This program does not require user input.'}
+          disabled={!requiresInput}
+          rows={5}
+          style={{ width: '100%', resize: 'vertical', borderRadius: '10px', border: '1px solid var(--border)', background: requiresInput ? 'var(--bg-surface)' : 'rgba(255,255,255,0.04)', color: 'var(--text-primary)', padding: '8px 10px', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}
+        />
+        {requiresInput && (
+          <button
+            onClick={() => typeof onInputSubmit === 'function' && onInputSubmit(stdinValue)}
+            style={{ marginTop: '8px', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--indigo-500)', background: 'var(--indigo-500)', color: 'white', cursor: 'pointer' }}
+          >
+            Run with input
+          </button>
         )}
       </div>
 

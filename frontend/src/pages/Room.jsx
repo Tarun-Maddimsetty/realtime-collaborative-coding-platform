@@ -41,10 +41,15 @@ export default function Room() {
   const [jsCode, setJsCode]           = useState('');
   const [language, setLanguage]       = useState('javascript');
   const [output, setOutput]           = useState('');
+  const [stderrOutput, setStderrOutput] = useState('');
+  const [compileErrorOutput, setCompileErrorOutput] = useState('');
+  const [runtimeErrorOutput, setRuntimeErrorOutput] = useState('');
   const [previewDoc, setPreviewDoc]   = useState('');
   const [execStatus, setExecStatus]   = useState('');
   const [execLoading, setExecLoading] = useState(false);
   const [awaitingInput, setAwaitingInput] = useState(false);
+  const [requiresInput, setRequiresInput] = useState(false);
+  const [stdinInput, setStdinInput] = useState('');
   const [executionSessionId, setExecutionSessionId] = useState('');
   const [activeUsers, setActiveUsers] = useState([]);
   const [activeTab, setActiveTab]     = useState('chat');
@@ -182,13 +187,22 @@ export default function Room() {
   }, [language, htmlCode, cssCode, jsCode, code]);
 
   const handleRun = async (stdinOverride = '') => {
+    const resolvedInput = typeof stdinOverride === 'string' ? stdinOverride : stdinInput;
+    const shouldPreserveOutput = typeof stdinOverride === 'string' && stdinOverride.length > 0;
+
     setExecLoading(true);
     setAwaitingInput(false);
     setActiveTab('output');
-    if (!stdinOverride) {
+    setPreviewDoc('');
+
+    if (!shouldPreserveOutput) {
       setOutput('');
+      setStderrOutput('');
+      setCompileErrorOutput('');
+      setRuntimeErrorOutput('');
       setExecStatus('');
     }
+
     try {
       const payload = {
         code: language === 'html' ? htmlCode : language === 'css' ? cssCode : language === 'javascript' ? jsCode : code,
@@ -196,13 +210,27 @@ export default function Room() {
         htmlCode,
         cssCode,
         jsCode,
-        input: stdinOverride,
-        stdin: stdinOverride,
-        sessionId: stdinOverride ? executionSessionId : null,
+        input: resolvedInput,
+        stdin: resolvedInput,
+        sessionId: resolvedInput ? executionSessionId : null,
       };
 
       const res = await executeCode(payload);
-      const { success, output: executionOutput, stdout, stderr, compile_output, runtime_error, status, error, preview, isPreview, needsInput, sessionId } = res.data;
+      const {
+        success,
+        output: executionOutput,
+        stdout,
+        stderr,
+        compileError,
+        runtimeError,
+        status,
+        error,
+        preview,
+        isPreview,
+        needsInput,
+        sessionId,
+        requiresInput: backendRequiresInput,
+      } = res.data;
 
       if (isPreview) {
         setPreviewDoc(preview || '');
@@ -211,16 +239,17 @@ export default function Room() {
         return;
       }
 
-      const displayOutput = [stdout, stderr, compile_output, runtime_error, executionOutput, error].find(value => typeof value === 'string' && value.trim().length > 0) || 'No output';
+      const nextOutput = typeof stdout === 'string' && stdout.trim().length > 0 ? stdout : (typeof executionOutput === 'string' && executionOutput.trim().length > 0 ? executionOutput : 'No output');
+      const nextStderr = typeof stderr === 'string' ? stderr : '';
+      const nextCompileError = typeof compileError === 'string' ? compileError : '';
+      const nextRuntimeError = typeof runtimeError === 'string' ? runtimeError : '';
 
-      setPreviewDoc('');
-      setOutput((prevOutput) => {
-        if (!stdinOverride) return displayOutput;
-        if (!displayOutput || displayOutput === 'No output') return prevOutput;
-        const suffix = prevOutput && prevOutput.trim().length > 0 && !prevOutput.endsWith('\n') ? '\n' : '';
-        return `${prevOutput}${suffix}${displayOutput}`;
-      });
+      setOutput(shouldPreserveOutput ? `${output}${nextOutput}` : nextOutput);
+      setStderrOutput(nextStderr);
+      setCompileErrorOutput(nextCompileError);
+      setRuntimeErrorOutput(nextRuntimeError);
       setExecStatus(status || (success ? 'Accepted' : 'Error'));
+      setRequiresInput(Boolean(backendRequiresInput || needsInput));
       setAwaitingInput(Boolean(needsInput));
 
       if (sessionId) {
@@ -233,6 +262,9 @@ export default function Room() {
     } catch (err) {
       setPreviewDoc('');
       setOutput(err.response?.data?.error || err.message || 'Execution failed');
+      setStderrOutput('');
+      setCompileErrorOutput('');
+      setRuntimeErrorOutput('');
       setExecStatus('Error');
     } finally { setExecLoading(false); }
   };
@@ -610,7 +642,7 @@ export default function Room() {
           <div style={{ flex: 1, minHeight: 0 }}>
             {activeTab === 'chat'
               ? <Chat socketRef={socketRef} roomId={roomId} currentUser={user?.username} />
-              : <OutputPanel output={output} status={execStatus} loading={execLoading} previewDoc={previewDoc} language={language} awaitingInput={awaitingInput} onInputSubmit={(value) => handleRun(value)} />
+              : <OutputPanel output={output} stderr={stderrOutput} compileError={compileErrorOutput} runtimeError={runtimeErrorOutput} status={execStatus} loading={execLoading} previewDoc={previewDoc} language={language} awaitingInput={awaitingInput} requiresInput={requiresInput} stdinValue={stdinInput} onStdinChange={(value) => setStdinInput(value)} onInputSubmit={(value) => handleRun(value)} />
             }
           </div>
 

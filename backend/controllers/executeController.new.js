@@ -33,12 +33,24 @@ const buildPreviewDocument = ({ htmlCode = '', cssCode = '', jsCode = '', code =
 };
 
 const BIN_CANDIDATES = {
-  node: ['C:\\Program Files\\nodejs\\node.exe', 'node'],
-  python: ['C:\\Users\\Dell-3420\\AppData\\Local\\Python\\bin\\python.exe', 'python3', 'python'],
-  javac: ['C:\\Program Files\\Java\\jdk-21.0.12\\bin\\javac.exe', 'javac'],
-  java: ['C:\\Program Files\\Java\\jdk-21.0.12\\bin\\java.exe', 'java'],
-  gcc: ['C:\\msys64\\ucrt64\\bin\\gcc.exe', 'gcc'],
-  'g++': ['C:\\msys64\\ucrt64\\bin\\g++.exe', 'g++'],
+  node: IS_WIN
+    ? ['C:\\Program Files\\nodejs\\node.exe', 'node']
+    : ['/usr/bin/node', '/usr/local/bin/node', 'node'],
+  python: IS_WIN
+    ? ['C:\\Users\\Dell-3420\\AppData\\Local\\Python\\bin\\python.exe', 'python3', 'python']
+    : ['/usr/bin/python3', '/usr/local/bin/python3', 'python3', 'python'],
+  javac: IS_WIN
+    ? ['C:\\Program Files\\Java\\jdk-21.0.12\\bin\\javac.exe', 'javac']
+    : ['/usr/bin/javac', '/usr/local/bin/javac', 'javac'],
+  java: IS_WIN
+    ? ['C:\\Program Files\\Java\\jdk-21.0.12\\bin\\java.exe', 'java']
+    : ['/usr/bin/java', '/usr/local/bin/java', 'java'],
+  gcc: IS_WIN
+    ? ['C:\\msys64\\ucrt64\\bin\\gcc.exe', 'gcc']
+    : ['/usr/bin/gcc', '/usr/local/bin/gcc', 'gcc'],
+  'g++': IS_WIN
+    ? ['C:\\msys64\\ucrt64\\bin\\g++.exe', 'g++']
+    : ['/usr/bin/g++', '/usr/local/bin/g++', 'g++'],
   go: ['go'],
   php: ['php'],
   ruby: ['ruby'],
@@ -51,17 +63,59 @@ const resolveBin = (name) => {
   const candidates = BIN_CANDIDATES[name] || [name];
   const pathDirs = (process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean);
   const extraDirs = [];
+
+  const localBinDir = path.join(__dirname, '..', 'bin');
+  extraDirs.push(localBinDir);
+  const localJdkBin = path.join(localBinDir, 'jdk', 'bin');
+  if (fs.existsSync(localJdkBin)) extraDirs.push(localJdkBin);
+
   if (name === 'java' || name === 'javac') {
     if (process.env.JAVA_HOME) extraDirs.push(path.join(process.env.JAVA_HOME, 'bin'));
     if (IS_WIN) {
       extraDirs.push('C:\\Program Files\\Common Files\\Oracle\\Java\\javapath');
-      extraDirs.push('C:\\Program Files\\Java\\jdk-21.0.12\\bin');
+      const javaRoots = [
+        'C:\\Program Files\\Java',
+        'C:\\Program Files (x86)\\Java',
+        'C:\\Program Files\\Eclipse Adoptium',
+        'C:\\Program Files\\Amazon Corretto'
+      ];
+      for (const root of javaRoots) {
+        try {
+          if (fs.existsSync(root)) {
+            const entries = fs.readdirSync(root);
+            for (const entry of entries) {
+              extraDirs.push(path.join(root, entry, 'bin'));
+              extraDirs.push(path.join(root, entry));
+            }
+          }
+        } catch {}
+      }
+    } else {
+      const linuxRoots = [
+        '/usr/lib/jvm',
+        '/usr/java',
+        '/opt/java',
+        '/opt/jdk'
+      ];
+      for (const root of linuxRoots) {
+        try {
+          if (fs.existsSync(root)) {
+            const entries = fs.readdirSync(root);
+            for (const entry of entries) {
+              const binDir = path.join(root, entry, 'bin');
+              if (fs.existsSync(binDir)) extraDirs.push(binDir);
+            }
+          }
+        } catch {}
+      }
+      extraDirs.push('/usr/bin', '/usr/local/bin');
     }
   }
+
   const dirsToCheck = [...new Set([...extraDirs, ...pathDirs])];
   for (const candidate of candidates) {
     if (path.isAbsolute(candidate) && fs.existsSync(candidate)) return candidate;
-    const exts = IS_WIN ? (process.env.PATHEXT || '.EXE').split(';') : [''];
+    const exts = IS_WIN ? (process.env.PATHEXT || '.EXE;.BAT;.CMD').split(';') : [''];
     for (const dir of dirsToCheck) {
       for (const ext of exts) {
         const full = path.join(dir, candidate + ext);

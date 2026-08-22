@@ -55,3 +55,20 @@ test('returns structured execution metadata for a Python program', async () => {
   assert.equal(typeof res.body.executionTime, 'string');
   assert.equal(typeof res.body.memory, 'string');
 });
+
+test('compiles and executes Java program', async () => {
+  const req = {
+    body: {
+      code: 'public class Main { public static void main(String[] args) { System.out.println("Hello Render Java"); } }',
+      language: 'java',
+    },
+  };
+  const res = createRes();
+
+  await executeCode(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.language, 'java');
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.stdout.trim(), 'Hello Render Java');
+});

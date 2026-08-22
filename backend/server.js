@@ -12,14 +12,34 @@ const roomSocket    = require('./socket/roomSocket');
 
 connectDB();
 
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.CLIENT_URL]
-  : /^http:\/\/localhost:(5173|5174|5175|5176|5177)$/;
-  console.log("NODE_ENV:", process.env.NODE_ENV);
+const clientUrls = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((u) => u.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  if (/^http:\/\/localhost:(5173|5174|5175|5176|5177)$/.test(cleanOrigin)) return true;
+  if (clientUrls.includes(cleanOrigin)) return true;
+  if (/\.vercel\.app$/.test(new URL(origin).hostname)) return true;
+  return false;
+};
+
+console.log("NODE_ENV:", process.env.NODE_ENV);
 console.log("CLIENT_URL:", process.env.CLIENT_URL);
 
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    try {
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    } catch {
+      return callback(null, true);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 };

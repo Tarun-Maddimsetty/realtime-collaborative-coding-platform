@@ -190,10 +190,29 @@ export default function Room() {
     const resolvedInput = typeof stdinOverride === 'string' ? stdinOverride : stdinInput;
     const shouldPreserveOutput = typeof stdinOverride === 'string' && stdinOverride.length > 0;
 
+    setActiveTab('output');
+
+    // 1. Instant client-side execution for HTML and CSS (zero server latency)
+    if (language === 'html' || language === 'css') {
+      const content = language === 'html' ? htmlCode : cssCode;
+      const doc = buildPreviewDocument({ code: content, language, htmlCode, cssCode, jsCode });
+      setPreviewDoc(doc);
+      setOutput('Live preview updated successfully.');
+      setStderrOutput('');
+      setCompileErrorOutput('');
+      setRuntimeErrorOutput('');
+      setExecStatus('Accepted');
+      setExecLoading(false);
+      return;
+    }
+
     setExecLoading(true);
     setAwaitingInput(false);
-    setActiveTab('output');
-    setPreviewDoc('');
+
+    // Keep previewDoc synchronized for JavaScript web projects
+    if (language === 'javascript') {
+      setPreviewDoc(buildPreviewDocument({ code: jsCode, language, htmlCode, cssCode, jsCode }));
+    }
 
     if (!shouldPreserveOutput) {
       setOutput('');
@@ -205,7 +224,7 @@ export default function Room() {
 
     try {
       const payload = {
-        code: language === 'html' ? htmlCode : language === 'css' ? cssCode : language === 'javascript' ? jsCode : code,
+        code: language === 'javascript' ? jsCode : code,
         language,
         htmlCode,
         cssCode,
@@ -232,9 +251,9 @@ export default function Room() {
         requiresInput: backendRequiresInput,
       } = res.data;
 
-      if (isPreview) {
-        setPreviewDoc(preview || '');
-        setOutput(preview ? 'Live preview ready' : 'Preview cleared');
+      if (isPreview && preview) {
+        setPreviewDoc(preview);
+        setOutput('Live preview ready');
         setExecStatus(success ? 'Accepted' : 'Error');
         return;
       }
@@ -260,7 +279,31 @@ export default function Room() {
         setExecStatus('Awaiting Input');
       }
     } catch (err) {
-      setPreviewDoc('');
+      // Client-side fallback for JavaScript if backend is offline or sleeping
+      if (language === 'javascript') {
+        try {
+          const logs = [];
+          const customConsole = {
+            log: (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+            info: (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+            warn: (...args) => logs.push('[warn] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+            error: (...args) => logs.push('[error] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+          };
+          const fn = new Function('console', jsCode || code);
+          fn(customConsole);
+          const resultText = logs.length > 0 ? logs.join('\n') : 'Code executed successfully (no console output)';
+          setOutput(resultText);
+          setExecStatus('Accepted');
+          return;
+        } catch (evalErr) {
+          const msg = evalErr.message || String(evalErr);
+          setRuntimeErrorOutput(msg);
+          setOutput(msg);
+          setExecStatus('Error');
+          return;
+        }
+      }
+
       setOutput(err.response?.data?.error || err.message || 'Execution failed');
       setStderrOutput('');
       setCompileErrorOutput('');

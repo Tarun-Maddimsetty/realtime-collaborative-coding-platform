@@ -8,28 +8,49 @@ const TIMEOUT_MS = 10_000;
 const MAX_CODE_LEN = 50_000;
 const IS_WIN = process.platform === 'win32';
 const SUPPORTED_LANGUAGES = new Set(['javascript', 'js', 'python', 'py', 'java', 'c', 'cpp', 'cc', 'csharp', 'cs', 'go', 'php', 'ruby', 'rb', 'rust', 'rs', 'typescript', 'ts', 'json', 'html', 'css']);
-const WEB_PREVIEW_LANGS = new Set(['html', 'css', 'javascript', 'js', 'typescript', 'ts']);
+const WEB_PREVIEW_LANGS = new Set(['html', 'css']);
 const EXECUTION_SESSIONS = new Map();
 
 const buildPreviewDocument = ({ htmlCode = '', cssCode = '', jsCode = '', code = '', language = 'html' }) => {
   const html = (language === 'html' ? code : htmlCode || '').trim();
   const css = (language === 'css' ? code : cssCode || '').trim();
   const js = (language === 'javascript' || language === 'js' ? code : jsCode || '').trim();
-  const baseHtml = html || '<div style="font-family:system-ui,sans-serif;padding:24px;">Preview</div>';
-
-  if (!css && !js) {
-    if (baseHtml.includes('<!doctype html>') || /<html[\s>]/i.test(baseHtml) || /<body[\s>]/i.test(baseHtml)) {
-      return baseHtml;
+  let baseHtml = html;
+  if (!baseHtml) {
+    if (css || js) {
+      baseHtml = '<div style="font-family:system-ui,sans-serif;padding:24px;"><h2 style="margin-top:0;">Live Preview</h2><p>HTML is empty. CSS and JavaScript are running.</p></div>';
+    } else {
+      baseHtml = '<div style="font-family:system-ui,sans-serif;padding:24px;color:#888;">Preview</div>';
     }
-    return `<!doctype html><html><body>${baseHtml}</body></html>`;
   }
 
-  const styleTag = css ? `<style>${css}</style>` : '';
-  const scriptTag = js ? `<script>${js}</script>` : '';
-  if (baseHtml.includes('<!doctype html>') || /<html[\s>]/i.test(baseHtml)) {
-    return baseHtml.replace(/<\/head>/i, `${styleTag}</head>`).replace(/<\/body>/i, `${scriptTag}</body>`);
+  const styleTag = css ? `<style id="user-styles">\n${css}\n</style>` : '';
+  const scriptTag = js ? `<script>\ntry {\n${js}\n} catch (err) {\n  console.error(err.message || err);\n}\n<\/script>` : '';
+
+  const hasHead = /<\/head>/i.test(baseHtml);
+  const hasBodyOpen = /<body[\s>]/i.test(baseHtml);
+  const hasBodyClose = /<\/body>/i.test(baseHtml);
+  const hasHtmlTag = /<html[\s>]/i.test(baseHtml);
+
+  let doc = baseHtml;
+
+  if (hasHead) {
+    doc = doc.replace(/<\/head>/i, `${styleTag}\n</head>`);
+  } else if (hasBodyOpen) {
+    doc = doc.replace(/<body[\s>]/i, (m) => `<head><meta charset="utf-8" />${styleTag}</head>\n${m}`);
+  } else if (hasHtmlTag) {
+    doc = doc.replace(/<html[\s>]/i, (m) => `${m}\n<head><meta charset="utf-8" />${styleTag}</head>`);
   }
-  return `<!doctype html><html><head><meta charset="utf-8" />${styleTag}</head><body>${baseHtml}${scriptTag}</body></html>`;
+
+  if (hasBodyClose) {
+    doc = doc.replace(/<\/body>/i, `${scriptTag}\n</body>`);
+  } else if (hasHtmlTag) {
+    doc = doc.replace(/<\/html>/i, `${scriptTag}\n</html>`);
+  } else {
+    doc = `<!doctype html><html><head><meta charset="utf-8" />${styleTag}</head><body>${doc}${scriptTag}</body></html>`;
+  }
+
+  return doc;
 };
 
 const BIN_CANDIDATES = {
@@ -60,6 +81,7 @@ const BIN_CANDIDATES = {
 };
 
 const resolveBin = (name) => {
+  if (name === 'node') return process.execPath || 'node';
   const candidates = BIN_CANDIDATES[name] || [name];
   const pathDirs = (process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean);
   const extraDirs = [];

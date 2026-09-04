@@ -55,7 +55,7 @@ const roomSocket = (io) => {
 
       // Restore saved code for the joining user
       const room = await Room.findOne({ roomId });
-      if (room) socket.emit('load-code', { code: room.code, language: room.language });
+      if (room) socket.emit('load-code', { code: room.code, language: room.language, htmlCode: room.htmlCode || '', cssCode: room.cssCode || '', jsCode: room.jsCode || '' });
 
       // Send last 50 chat messages
       const messages = await Message.find({ room: roomId })

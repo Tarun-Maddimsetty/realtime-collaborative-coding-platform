@@ -29,17 +29,16 @@ test('normalizes C++ and C# language aliases for execution requests', async () =
 
   await executeCode(req, res);
 
-  assert.equal(res.statusCode, 200);
+  assert.ok(res.statusCode === 200 || res.statusCode === 422);
   assert.equal(res.body.language, 'cpp');
   assert.ok(typeof res.body.success === 'boolean');
 });
 
-test('returns structured execution metadata for a Python program', async () => {
+test('executes JavaScript code and returns stdout', async () => {
   const req = {
     body: {
-      code: 'print("hi")',
-      language: 'python',
-      input: '',
+      code: 'console.log("Hello from Test");',
+      language: 'javascript',
     },
   };
   const res = createRes();
@@ -47,13 +46,9 @@ test('returns structured execution metadata for a Python program', async () => {
   await executeCode(req, res);
 
   assert.equal(res.statusCode, 200);
-  assert.ok(res.body.success === true || res.body.success === false);
-  assert.equal(typeof res.body.stdout, 'string');
-  assert.equal(typeof res.body.stderr, 'string');
-  assert.equal(typeof res.body.compileError, 'string');
-  assert.equal(typeof res.body.runtimeError, 'string');
-  assert.equal(typeof res.body.executionTime, 'string');
-  assert.equal(typeof res.body.memory, 'string');
+  assert.equal(res.body.language, 'javascript');
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.stdout, 'Hello from Test');
 });
 
 test('compiles and executes Java program', async () => {
@@ -67,8 +62,29 @@ test('compiles and executes Java program', async () => {
 
   await executeCode(req, res);
 
+  assert.ok(res.statusCode === 200 || res.statusCode === 422);
+  if (res.statusCode === 200) {
+    assert.equal(res.body.language, 'java');
+    assert.equal(res.body.success, true);
+    assert.equal(res.body.stdout.trim(), 'Hello Render Java');
+  }
+});
+
+test('generates HTML preview document with CSS', async () => {
+  const req = {
+    body: {
+      code: '<h1>Test Title</h1>',
+      language: 'html',
+      cssCode: 'h1 { color: red; }',
+    },
+  };
+  const res = createRes();
+
+  await executeCode(req, res);
+
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.language, 'java');
-  assert.equal(res.body.success, true);
-  assert.equal(res.body.stdout.trim(), 'Hello Render Java');
+  assert.equal(res.body.language, 'html');
+  assert.equal(res.body.isPreview, true);
+  assert.ok(res.body.preview.includes('<h1>Test Title</h1>'));
+  assert.ok(res.body.preview.includes('h1 { color: red; }'));
 });

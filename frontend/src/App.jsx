@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { isAuthenticated } from './utils/auth';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -24,8 +25,11 @@ const PublicRoute = ({ children }) =>
   !isAuthenticated() ? children : <Navigate to="/dashboard" replace />;
 
 export default function App() {
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
   return (
-    <BrowserRouter>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -46,5 +50,6 @@ export default function App() {
         <Route path="/room/:roomId/members" element={<ProtectedRoute><MembersPage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
+  </GoogleOAuthProvider>
   );
 }

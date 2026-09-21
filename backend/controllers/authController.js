@@ -1,7 +1,10 @@
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const Room = require('../models/Room');
 const SavedFile = require('../models/SavedFile');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -180,4 +183,86 @@ const updateMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, getUserProfile, updateMe };
+const googleAuth = async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ message: 'Google credential is required' });
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ message: 'Google Client ID is not configured on the server' });
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr) {
+      return res.status(401).json({ message: 'Invalid or expired Google token' });
+    }
+
+    if (!payload) {
+      return res.status(401).json({ message: 'Failed to verify Google token' });
+    }
+
+    if (!payload.email_verified) {
+      return res.status(400).json({ message: 'Google email is not verified' });
+    }
+
+    const email = payload.email.toLowerCase();
+    const googleId = payload.sub;
+    const name = payload.name || '';
+    const picture = payload.picture || '';
+
+    // 1. Check if user already exists with this googleId
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      // 2. Check if user exists with the same email
+      user = await User.findOne({ email });
+
+      if (user) {
+        // Link Google ID to existing account safely without changing password or existing fields
+        user.googleId = googleId;
+        if (!user.avatarUrl && picture) {
+          user.avatarUrl = picture;
+        }
+        if (!user.fullName && name) {
+          user.fullName = name;
+        }
+        await user.save();
+      } else {
+        // 3. Create new user with a unique username
+        let baseUsername = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '');
+        if (baseUsername.length < 3) baseUsername = `user_${baseUsername}`;
+        let username = baseUsername;
+        while (await User.findOne({ username })) {
+          username = `${baseUsername}${Math.floor(100 + Math.random() * 900)}`;
+        }
+
+        user = await User.create({
+          username,
+          email,
+          fullName: name || username,
+          avatarUrl: picture,
+          authProvider: 'google',
+          googleId,
+        });
+      }
+    }
+
+    res.json({
+      token: generateToken(user._id),
+      user: sanitizeUser(user),
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Google authentication failed: ' + err.message });
+  }
+};
+
+module.exports = { register, login, googleAuth, getMe, getUserProfile, updateMe };
+

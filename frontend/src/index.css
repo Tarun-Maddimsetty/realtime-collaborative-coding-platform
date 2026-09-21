@@ -99,6 +99,18 @@ body {
   0%, 100% { transform: translateY(0px) translateX(0px); }
   50% { transform: translateY(-18px) translateX(12px); }
 }
+@keyframes tech-pulse {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50% { opacity: 0.28; transform: scale(1.08); }
+}
+@keyframes particle-float-slow {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(14px, -18px, 0); }
+}
+@keyframes particle-float-alt {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-16px, 14px, 0); }
+}
 
 .animate-fade-in  { animation: fadeIn  0.22s ease both; }
 .animate-slide-up { animation: slideUp 0.28s cubic-bezier(0.16,1,0.3,1) both; }
@@ -114,6 +126,96 @@ body {
     linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
   background-size: 100% 100%, 48px 48px, 48px 48px;
 }
+
+/* ── Login Technology-Themed Background Effects ───────────────────────────── */
+.login-tech-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-tech-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 50%, #000 35%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 50%, #000 35%, transparent 100%);
+}
+
+.login-tech-glow {
+  position: absolute;
+  top: 25%;
+  left: 35%;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.18) 0%, rgba(16,185,129,0.06) 50%, transparent 70%);
+  filter: blur(50px);
+  animation: tech-pulse 14s ease-in-out infinite;
+}
+
+.login-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.login-particle-1 {
+  top: 18%;
+  left: 22%;
+  width: 5px;
+  height: 5px;
+  background: #818cf8;
+  box-shadow: 0 0 10px rgba(129,140,248,0.8);
+  opacity: 0.6;
+  animation: particle-float-slow 16s ease-in-out infinite;
+}
+
+.login-particle-2 {
+  top: 68%;
+  left: 14%;
+  width: 6px;
+  height: 6px;
+  background: #34d399;
+  box-shadow: 0 0 12px rgba(52,211,153,0.7);
+  opacity: 0.5;
+  animation: particle-float-alt 18s ease-in-out infinite;
+}
+
+.login-particle-3 {
+  top: 32%;
+  right: 18%;
+  width: 4px;
+  height: 4px;
+  background: #60a5fa;
+  box-shadow: 0 0 8px rgba(96,165,250,0.8);
+  opacity: 0.55;
+  animation: particle-float-slow 20s ease-in-out infinite reverse;
+}
+
+.login-particle-4 {
+  bottom: 22%;
+  right: 28%;
+  width: 5px;
+  height: 5px;
+  background: #a78bfa;
+  box-shadow: 0 0 10px rgba(167,139,250,0.7);
+  opacity: 0.5;
+  animation: particle-float-alt 15s ease-in-out infinite reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-tech-bg,
+  .login-tech-bg * {
+    animation: none !important;
+  }
+}
+
 
 /* ── Gradient text ────────────────────────────────────────────────────────── */
 .gradient-text {

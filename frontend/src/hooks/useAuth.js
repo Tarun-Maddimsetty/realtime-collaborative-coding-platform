@@ -29,9 +29,20 @@ export const useAuth = () => {
     } finally { setLoading(false); }
   }, []);
 
+  const loginWithGoogle = useCallback(async (credential) => {
+    setLoading(true); setError(null);
+    try {
+      const res = await api.post('/auth/google', { credential });
+      setToken(res.data.token); setUser(res.data.user); setUserState(res.data.user);
+      return res.data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Google login failed'); throw err;
+    } finally { setLoading(false); }
+  }, []);
+
   const logout = useCallback(() => {
     removeToken(); removeUser(); setUserState(null);
   }, []);
 
-  return { user, loading, error, register, login, logout, isAuthenticated: isAuthenticated() };
+  return { user, loading, error, register, login, loginWithGoogle, logout, isAuthenticated: isAuthenticated() };
 };

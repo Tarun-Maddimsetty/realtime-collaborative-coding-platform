@@ -21,7 +21,23 @@ const defaultPreferences = {
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, trim: true, minlength: 3 },
   email:    { type: String, required: true, unique: true, lowercase: true },
-  password: { type: String, required: true, minlength: 6 },
+  password: {
+    type: String,
+    required: function () {
+      return this.authProvider === 'local';
+    },
+    minlength: 6,
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local',
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   fullName: { type: String, default: '' },
   bio: { type: String, default: '' },
   location: { type: String, default: '' },
@@ -35,11 +51,12 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
+  if (!this.isModified('password') || !this.password) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
 
 userSchema.methods.matchPassword = function (password) {
+  if (!this.password) return false;
   return bcrypt.compare(password, this.password);
 };
 
